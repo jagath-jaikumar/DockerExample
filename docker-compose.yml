@@ -1,0 +1,60 @@
+version: "3"
+
+services:
+  db:
+    image: mysql:5.7
+    ports:
+      - "32000:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./Dispatch/db:/docker-entrypoint-initdb.d/:ro
+    networks:
+      - network
+
+  rabbitmq:
+    image: 'rabbitmq:3.6-management-alpine'
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - network
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "5672" ]
+      interval: 5s
+      timeout: 15s
+      retries: 1
+
+  dispatch:
+    build: ./Dispatch/dispatch
+    links:
+      - db
+    ports:
+      - "5000:5000"
+    environment:
+      AMQP_URL: 'amqp://rabbitmq?connection_attempts=5&retry_delay=5'
+    networks:
+      - network
+    restart: on-failure
+    depends_on:
+      - rabbitmq
+      - db
+
+
+
+
+
+  object_detection:
+    build: ./MLSample
+    environment:
+      AMQP_URL: 'amqp://rabbitmq?connection_attempts=5&retry_delay=5'
+    restart: on-failure
+    depends_on:
+      - rabbitmq
+      - db
+    networks:
+      - network
+
+
+networks:
+  network: {}
